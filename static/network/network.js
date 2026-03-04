@@ -3,6 +3,7 @@
 	Rearrange NetworkAPI to make the class methods and attributes more readable
 	Allow for multiple different games to seperate what is sent to users (likely going to be mainly logic in server.py)
 	Allow for ID to remain between connections EX resetting the page. (though, likely apart of game account logic seperately)
+	Make sendObject not singular
 */
 
 class NetworkAPI {
@@ -36,14 +37,14 @@ class NetworkAPI {
 	}
 
 
-	/*	sendJson
+	/*	sendObject
 		Sends a JavaScript object as json to all connected peers, as to be collected via the opening of onmessage. 
 
 		This expects the object to not include a "from" variable, as these are automatically added.
-		We do not add a "to," as the reciever knows how it is. A  "to" only is needed for a third server, like in .#send
 	*/
-	sendObject(object) {
-		message = JSON.stringify({
+
+	broadcastObject(object) {
+		const message = JSON.stringify({
 			from: this.#id,
 			...object
 		})
@@ -54,12 +55,12 @@ class NetworkAPI {
         }
 	}
 
-	/* 	sendStringifiedJson
+	/* 	broadcastStringifiedJson
 		If you have already stringified json you want to send, use this over sendObject.
 		Not recommended as compared to sendObject due to less efficiently adding the object, but creates the same message.
 		Likely has optimizations to make it less bad, but it will seemingly forever be slightly worse in anycase.
 	*/
-	sendStringifiedJson(json) {
+	broadcastStringifiedJson(json) {
 		json = JSON.parse(json)
 		json.from = this.#id
 		json = JSON.stringify(json)
@@ -68,6 +69,34 @@ class NetworkAPI {
 				peer.channel.send(json)
 			}
         }
+	}
+
+
+	// Singular versions of the broadcast methods, which send a message to a singular peer.
+	// As they can horribly fail, they throw errors, so do beware!
+
+	sendObject(object, peerId) {
+		const message = JSON.stringify({
+			from: this.#id,
+			...object
+		})
+		if (this.#peers[peerId]) {
+			this.#peers[peerId].channel.send(message)
+		} else {
+			throw new RangeError("sendObject's peerId could not be found!")
+		}
+	}
+
+	sendStringifiedJson(json, peerId) {
+		json = JSON.parse(json)
+		json.from = this.#id
+		json = JSON.stringify(json)
+		this.#peers[peerId].channel.send(json)
+		if (this.#peers[peerId]) {
+			this.#peers[peerId].channel.send(message)
+		} else {
+			throw new RangeError("sendStringifiedJson's peerId could not be found!")
+		}
 	}
 
 
@@ -89,7 +118,7 @@ class NetworkAPI {
 		dataChannel.onmessage = (messageEvent) => { this.onmessage(messageEvent, dataChannel) }
 	}
 
-	
+
 	/*	createConnection
 		Handles the creation of a peers{} peerConnection, including the data channel and managing ice connections.
 		Essentially, this is where a peerConnection is recognized.
@@ -112,7 +141,7 @@ class NetworkAPI {
 			channel: null
 		};
 
-		
+
 
 		const newConnection = new RTCPeerConnection({
 
@@ -237,10 +266,10 @@ class NetworkAPI {
 
 
 /*	constructNetworkAPI
-	The only way you are allowed to make a NetWorkAPI class, 
+	The only way you are allowed to make a NetworkAPI class, 
 	This is since we have asynchronous requirements class constructors do not allow.
 */
-async function constructNetworkAPI(
+export async function constructNetworkAPI(
 	// Defaults to our signaling servers IP, but theoretically could be manual to any server.
 	signalingURL = "wss://flying-casino-brakftgmdhbca5cy.canadacentral-01.azurewebsites.net/"
 ) {
@@ -278,11 +307,13 @@ async function constructNetworkAPI(
 		1. Run server.py locally with websockets.serve(handler, "localhost", 8765)
 		2. Remove "export" from constructNetworkAPI 
 		3. Replace index.html's script with just <script src="network.js"></script>
-		4. Drag and drop the project folder into a browser, and then go to index.html
+		4. Run webserver.js, and then go to network.js
 	And there you will have it. 
 	In my experience having multiple browsers do it, like chrome and firefox, best shows off networking features,
 	Otherwise, there can be weird bugs with it.
-*/
+
+	Also, mind that server.py is seperable from webserver.js, if you don't need networking to be local
+	You can host the website locally with webserver.js and still have the signaling server remotely.
 async function init() {
 	// localhost can be removed to use the actual signaling server
 	const network = await constructNetworkAPI()
@@ -306,3 +337,4 @@ async function init() {
 }
 
 init()
+*/
