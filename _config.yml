@@ -2,10 +2,11 @@ plugins:
   - jekyll-redirect-from
 
 exclude:
-  - "**/*"
+  - "*"
 
 include:
   - "/static/**/*"
   - "/static/*"
   - "/static"
+
 
