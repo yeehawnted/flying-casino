@@ -5,10 +5,10 @@ import uuid
 import os
 
 """
-	Dictionary for id to websockets. 
-	Sadly, websockets are technically not unique! They are an arbitrary variable.
+	Dictionary of rooms, which shall have a dictionary of ids to websockets. 
+	This is since websockets are technically not unique, and we often want to select only some of them.
 """
-clients = {}
+rooms = {}
 
 # Inevitably, the signaling server has to do some relaying.
 # However, it is exclusively for signaling. Thus, colloquially, it is a signaling server, not a relay server.
@@ -16,36 +16,51 @@ clients = {}
 async def handler(websocket):
 	# We need this id so that we can ensure signaling is targeted.
 	peer_id = str(uuid.uuid4())[:8]
-	clients[peer_id] = websocket
-
-	await websocket.send(json.dumps({
-		"type": "welcome",
-		"id": peer_id,
-		"peers": list(clients.keys())
-	}))
-
-
-    # Tell everyone else we've joined
-	for id, socket in clients.items():
-		if id != peer_id:
-			await socket.send(json.dumps({
-				"type": "new-peer",
-				"id": peer_id
-			}))
-
-
+	room_id = None
 	try:
+		# This can be easily abused by a websocket sending bad packets to crash the server, and needs error handling
+		# However, handling that isn't our top priority yet!
 		async for message in websocket:
 			data = json.loads(message)
-			
-			target = data.get("to")
 
-			if target in clients:
-				await clients[target].send(message)
+			if "arriving" in data :
+				room_id = data["room"]
+				if room_id not in rooms:
+					rooms[room_id] = {}
+				rooms[room_id][peer_id] = websocket
 
+				await websocket.send(json.dumps({
+					"type": "welcome",
+					"id": peer_id,
+					"peers": list(rooms[room_id].keys())
+				}))
+
+			    # Tell everyone else we've joined
+				for id, socket in rooms[room_id].items():
+					if id != peer_id:
+						await socket.send(json.dumps({
+							"type": "new-peer",
+							"id": peer_id
+						}))
+
+			else:
+				target = data.get("to")
+
+				if target in rooms[room_id]:
+					await rooms[room_id][target].send(message)
+	except:
+		pass # If there is an exception, whatever. We are just going to do what we finally must.
 	finally:
-	    del clients[peer_id]
+		# Tell everyone we've left. If you have no websocket, you have no peer connection, so everyone needs to know
+		for id, socket in rooms.get(room_id, {}).items():
+			if id != peer_id:
+				await socket.send(json.dumps({
+					"type": "leaving-peer",
+					"id": peer_id
+				}))
 
+		# Delete the entry, but does not crash Azure if there is no entry it fails to do a handshake.
+		rooms.get(room_id, {}).pop(peer_id, None)
 
 port = int(os.environ.get("PORT", 8765)) # Needed for Azure
 

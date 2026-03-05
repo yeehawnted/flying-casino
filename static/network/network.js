@@ -1,9 +1,8 @@
 /* TO DO:
 	Make all datachannel UDP like sendObject or setupDataChannel's async check for sequence to ensure no dropped packets.
+	More properly consider adding support of server.py as a TCP TURN server 
 	Rearrange NetworkAPI to make the class methods and attributes more readable
-	Allow for multiple different games to seperate what is sent to users (likely going to be mainly logic in server.py)
 	Allow for ID to remain between connections EX resetting the page. (though, likely apart of game account logic seperately)
-	Make sendObject not singular
 */
 
 class NetworkAPI {
@@ -13,18 +12,20 @@ class NetworkAPI {
 	*/
 	#socket
 	#id
+	#roomId
 	#peers
 	#pendingIceCandidates
 	onmessage
 
 	// Should never be used by anything but constructNetworkAPI due to us requiring an ID.
-	constructor(socket, id) {
+	constructor(socket, id, roomId) {
 		this.#socket = socket
 		this.#id = id
+		this.#roomId = roomId
 		this.#peers = {
 			peerId : {
-				connection: RTCPeerConnection,
-				channel: RTCDataChannel
+				connection : null,
+				channel : null
 			}
 		}
 		this.#pendingIceCandidates = []
@@ -36,20 +37,42 @@ class NetworkAPI {
 		return this.#id
 	}
 
+	get roomId() {
+		return this.#roomId
+	}
 
-	/*	sendObject
+	get peers() {
+		return this.#peers
+	}
+
+	// The destructor, but also just how you stop NetworkAPI from working until you make a new one.
+	// Very important to call when you are done with a network. Otherwise, you will still recieve .onmessage events
+	destroy() {
+        for (const peer of Object.values(this.#peers)) {
+            if (peer.channel) {
+				peer.channel.close()
+			}
+            if (peer.connection) {
+				peer.connection.close()
+			}
+        }
+		this.#peers = {}
+		this.#socket.close()
+	}
+
+
+	/*	broadcastObject
 		Sends a JavaScript object as json to all connected peers, as to be collected via the opening of onmessage. 
 
 		This expects the object to not include a "from" variable, as these are automatically added.
 	*/
-
 	broadcastObject(object) {
 		const message = JSON.stringify({
 			from: this.#id,
 			...object
 		})
-        for (const peer of Object.values(this.#peers)) {
-            if (peer.channel && peer.channel.readyState === "open") {
+		for (const peer of Object.values(this.#peers)) {
+			if (peer.channel && peer.channel.readyState === "open") {
 				peer.channel.send(message)
 			}
         }
@@ -97,6 +120,18 @@ class NetworkAPI {
 		} else {
 			throw new RangeError("sendStringifiedJson's peerId could not be found!")
 		}
+	}
+
+
+	#send(to, json) {
+		if (this.#socket.readyState === WebSocket.CLOSED || this.#socket.readyState === WebSocket.CLOSING) {
+			return
+		}
+		this.#socket.send(JSON.stringify({
+			to,
+			from: this.id,
+			...json
+		}))
 	}
 
 
@@ -212,6 +247,12 @@ class NetworkAPI {
 				this.createConnection(data.id, false)
 				return
 			}
+			
+			// If someone is leaving, they have no websocket, and thus we have no effective WebRTCConnection
+			// Though it could otherwise remain nonetheless, we literally can no longer care if it goes down or not.
+			if (data.type === "leaving-peer") {
+				delete this.#peers[data.id]
+			}
 
 			if (data.offer) {
 				const peerConnection = this.createConnection(data.from, false).connection
@@ -250,16 +291,6 @@ class NetworkAPI {
 			}
 		}
 	}
-
-
-
-	#send(to, json) {
-		this.#socket.send(JSON.stringify({
-			to,
-			from: this.id,
-			...json
-		}))
-	}
 }
 
 
@@ -271,13 +302,19 @@ class NetworkAPI {
 */
 export async function constructNetworkAPI(
 	// Defaults to our signaling servers IP, but theoretically could be manual to any server.
-	signalingURL = "wss://flying-casino-brakftgmdhbca5cy.canadacentral-01.azurewebsites.net/"
+	signalingURL = "flying-casino-brakftgmdhbca5cy.canadacentral-01.azurewebsites.net",
+	roomId = "global"
 ) {
 	const socket = new WebSocket(signalingURL)
 
 	// Fairly new to JavaScript, so apologies for this over-explanatory comment:
 	// Essentially, "I promise the socket will open. Await until then" 
 	await new Promise(resolve => socket.onopen = resolve)
+
+	socket.send(JSON.stringify({
+		arriving: true,
+		room: roomId
+	}))
 
 	// Same as above, but now we promise we are nabbing the mandatory returning welcome JSON.
 	const welcome = await new Promise(resolve => {
@@ -288,7 +325,7 @@ export async function constructNetworkAPI(
 			}
 		}
 	})
-	const network = new NetworkAPI(socket, welcome.id)
+	const network = new NetworkAPI(socket, welcome.id, roomId)
 
 	network.setupMessageHandler()
 
@@ -300,41 +337,3 @@ export async function constructNetworkAPI(
 
 	return network
 }
-
-/* 
-	To be deleted later, but currently just commented out for usage for local testing in this early stage of development.
-	To do so: 
-		1. Run server.py locally with websockets.serve(handler, "localhost", 8765)
-		2. Remove "export" from constructNetworkAPI 
-		3. Replace index.html's script with just <script src="network.js"></script>
-		4. Run webserver.js, and then go to network.js
-	And there you will have it. 
-	In my experience having multiple browsers do it, like chrome and firefox, best shows off networking features,
-	Otherwise, there can be weird bugs with it.
-
-	Also, mind that server.py is seperable from webserver.js, if you don't need networking to be local
-	You can host the website locally with webserver.js and still have the signaling server remotely.
-async function init() {
-	// localhost can be removed to use the actual signaling server
-	const network = await constructNetworkAPI()
-
-	const input = document.getElementById("messageInput")
-	const button = document.getElementById("sendMessage")
-	const messages = document.getElementById("messageBox")
-	
-	button.onclick = () => {
-		network.sendStringifiedJson(JSON.stringify({
-			text: input.value
-		}))
-		input.value = ""
-	}
-
-	network.onmessage = (message) => {
-		const p = document.createElement ("p")
-		p.innerText = "From: " + JSON.parse(message.data).from + "\n" + JSON.parse(message.data).text
-		messages.appendChild(p)
-	}
-}
-
-init()
-*/

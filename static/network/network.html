@@ -6,7 +6,12 @@
 </head>
 
 <body>
-	<main>		
+	<main>
+		<input id="roomInput" placeholder ="Room Name" value="global">
+		<button id="roomButton">Join Room</button>
+
+		</br>
+
 		<input id="messageInput" placeholder="Message">
 		<button id="sendMessage">Send</button>
 
@@ -20,8 +25,22 @@
 
 		<script type = "module">
 			import { constructNetworkAPI } from "./network.js"
+
 			async function init() {
-				const network = await constructNetworkAPI("wss://flying-casino-brakftgmdhbca5cy.canadacentral-01.azurewebsites.net/")
+				var network = await constructNetworkAPI("wss://flying-casino-brakftgmdhbca5cy.canadacentral-01.azurewebsites.net/")
+				network.onmessage = (message) => {
+					const p = document.createElement ("p")
+					if (JSON.parse(message.data).direct) {
+						p.innerText = "Directly From: " + JSON.parse(message.data).from + "\n" + JSON.parse(message.data).text
+						p.style.color = "blue"
+					} else {
+						p.innerText = "From: " + JSON.parse(message.data).from + "\n" + JSON.parse(message.data).text
+					}
+					messages.appendChild(p)
+				}
+
+				const roomInput = document.getElementById("roomInput")
+				const roomButton = document.getElementById("roomButton")
 
 				const input = document.getElementById("messageInput")
 				const button = document.getElementById("sendMessage")
@@ -31,6 +50,37 @@
 				const directTarget = document.getElementById("directTarget")
 				const directButton = document.getElementById("directMessage")
 				
+
+				roomButton.onclick = async () => {
+					// Needed not just because it is good logic, 
+					// It is also since otherwise the server might allow one connection two data channels!
+					// Funnily, it only happens if you spam it since the server's slow. A local server has no issues. 
+					// Likely a smart and more proper fix, but for right now, whatever, right? 
+					if (roomInput.value === network.roomId) {return}
+
+					network.destroy()
+					network = await constructNetworkAPI(
+						"wss://flying-casino-brakftgmdhbca5cy.canadacentral-01.azurewebsites.net/",
+						roomInput.value
+					)
+					const p = document.createElement ("p")
+					p.innerText = "Joined room: " + roomInput.value
+					p.style.color = "green"
+					
+					messages.appendChild(p)
+
+					network.onmessage = (message) => {
+						const p = document.createElement ("p")
+						if (JSON.parse(message.data).direct) {
+							p.innerText = "Directly From: " + JSON.parse(message.data).from + "\n" + JSON.parse(message.data).text
+							p.style.color = "blue"
+						} else {
+							p.innerText = "From: " + JSON.parse(message.data).from + "\n" + JSON.parse(message.data).text
+						}
+						messages.appendChild(p)
+					}
+				}
+
 				button.onclick = () => {
 					network.broadcastObject({
 						text: input.value
@@ -51,17 +101,6 @@
 						console.log(e)
 					}
 					directInput.value = ""
-				}
-
-				network.onmessage = (message) => {
-					const p = document.createElement ("p")
-					if (JSON.parse(message.data).direct) {
-						p.innerText = "Directly From: " + JSON.parse(message.data).from + "\n" + JSON.parse(message.data).text
-						p.style.color = "blue"
-					} else {
-						p.innerText = "From: " + JSON.parse(message.data).from + "\n" + JSON.parse(message.data).text
-					}
-					messages.appendChild(p)
 				}
 			}
 			init()
