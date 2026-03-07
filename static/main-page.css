@@ -39,6 +39,8 @@ html, body {
   border-radius: 50%;
   pointer-events: none;
   z-index: 9999;
+  left: -20px;
+  top: -20px;
   transform: translate(-50%, -50%);
   box-shadow: 0 0 10px rgba(255,255,255,0.6);
   transition: width 0.1s, height 0.1s, background 0.1s;
@@ -56,24 +58,28 @@ html, body {
   background: #080808;
 }
 
-/* ── LAMP LIGHT — radial cone from top center ── */
+/* ── LAMP LIGHT — beam from underneath the shade ── */
 #room::before {
   content: '';
   position: absolute;
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 1000px;
+  width: 100vw;
   height: 100vh;
   background: radial-gradient(
-    ellipse 55% 90% at 50% 0%,
-    rgba(255, 210, 100, 0.28) 0%,
-    rgba(220, 160, 50, 0.12) 30%,
-    rgba(180, 120, 30, 0.04) 55%,
-    transparent 70%
+    ellipse 55% 70% at 50% 12%,
+    rgba(255, 225, 130, 0.45) 0%,
+    rgba(230, 190, 80, 0.25) 20%,
+    rgba(180, 140, 50, 0.10) 45%,
+    transparent 65%
   );
   pointer-events: none;
   z-index: 1;
+}
+
+#room::after {
+  display: none;
 }
 
 /* ── HANGING LAMP ── */
@@ -102,29 +108,24 @@ html, body {
   clip-path: polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%);
   border-bottom: 2px solid var(--gold);
   position: relative;
+  box-shadow: 0 4px 30px rgba(255, 210, 100, 0.5);
 }
 
 /* Warm glow spilling out from bottom of shade */
 #lamp-shade::after {
   content: '';
   position: absolute;
-  bottom: -20px;
-  left: -20px;
-  right: -20px;
-  height: 20px;
-  background: radial-gradient(ellipse at 50% 0%, rgba(255, 210, 100, 0.6) 0%, transparent 80%);
+  bottom: -40px;
+  left: -40px;
+  right: -40px;
+  height: 40px;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255, 220, 100, 0.95) 0%, rgba(255, 200, 80, 0.5) 40%, transparent 75%);
 }
 
 /* ── TABLE WRAPPER ── */
 #table-wrap {
   position: relative;
   z-index: 5;
-  animation: tableFloat 7s ease-in-out infinite;
-}
-
-@keyframes tableFloat {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-5px); }
 }
 
 /* ── RAIL ── */
@@ -156,7 +157,9 @@ html, body {
 #felt {
   width: 100%;
   height: 100%;
-  background: radial-gradient(ellipse at 50% 40%, var(--felt-light) 0%, var(--felt) 55%, var(--felt-dark) 100%);
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(255, 220, 100, 0.18) 0%, transparent 60%),
+    radial-gradient(ellipse at 50% 40%, var(--felt-light) 0%, var(--felt) 55%, var(--felt-dark) 100%);
   border-radius: 16px;
   position: relative;
   overflow: hidden;
@@ -180,15 +183,7 @@ html, body {
 
 /* ── TABLE MARKINGS ── */
 .spot {
-  position: absolute;
-  width: 7px;
-  height: 7px;
-  background: rgba(255,255,255,0.2);
-  border-radius: 50%;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
+  display: none;
 }
 
 .baulk-line {
@@ -241,23 +236,31 @@ html, body {
     2px 3px 7px rgba(0,0,0,0.65),
     inset -2px -2px 5px rgba(0,0,0,0.3),
     inset 2px 2px 4px rgba(255,255,255,0.4);
-  transition: transform 0.18s;
+  transition: transform 0.15s, box-shadow 0.15s;
   cursor: none;
-  z-index: 2;
+  z-index: 15;
 }
 
-/* Triangle rack — bottom right of felt, out of the way of UI */
-.b1  { width:22px; height:22px; background: radial-gradient(circle at 35% 30%, #fff8e0, #f0c010); bottom:22%; right:14%; }
-.b2  { width:22px; height:22px; background: radial-gradient(circle at 35% 30%, #ffaaaa, #cc0000); bottom:30%; right:18%; }
-.b3  { width:22px; height:22px; background: radial-gradient(circle at 35% 30%, #aaaaff, #2222cc); bottom:22%; right:22%; }
-.b4  { width:22px; height:22px; background: radial-gradient(circle at 35% 30%, #ffccaa, #cc4400); bottom:38%; right:14%; }
-.b5  { width:22px; height:22px; background: radial-gradient(circle at 35% 30%, #ffbbaa, #dd2200); bottom:38%; right:22%; }
-.b6  { width:22px; height:22px; background: radial-gradient(circle at 35% 30%, #aaffaa, #008800); bottom:46%; right:18%; }
-.b8  { width:24px; height:24px; background: radial-gradient(circle at 35% 30%, #555, #111);       bottom:30%; right:10%; }
-.b9  { width:22px; height:22px; background: radial-gradient(circle at 35% 30%, #ffff88, #aaaa00); bottom:46%; right:10%; }
-.b10 { width:21px; height:21px; background: radial-gradient(circle at 35% 30%, #ffaaff, #880088); bottom:54%; right:14%; }
-.b11 { width:21px; height:21px; background: radial-gradient(circle at 35% 30%, #ffddaa, #ee6600); bottom:54%; right:22%; }
-.b15 { width:21px; height:21px; background: radial-gradient(circle at 35% 30%, #ffaaaa, #990000); bottom:46%; right:26%; }
+.ball:hover {
+  box-shadow:
+    4px 6px 14px rgba(0,0,0,0.8),
+    0 0 8px rgba(255,255,255,0.15),
+    inset -2px -2px 5px rgba(0,0,0,0.3),
+    inset 2px 2px 4px rgba(255,255,255,0.4);
+}
+
+/* Triangle rack — tight cluster, bottom right, clear of buttons */
+.b1  { width:22px; height:22px; background: radial-gradient(circle at 35% 30%, #fff8e0, #f0c010); bottom:6%;  right:20%; }
+.b2  { width:22px; height:22px; background: radial-gradient(circle at 35% 30%, #ffaaaa, #cc0000); bottom:12%; right:16%; }
+.b3  { width:22px; height:22px; background: radial-gradient(circle at 35% 30%, #aaaaff, #2222cc); bottom:12%; right:24%; }
+.b4  { width:22px; height:22px; background: radial-gradient(circle at 35% 30%, #ffccaa, #cc4400); bottom:18%; right:12%; }
+.b5  { width:22px; height:22px; background: radial-gradient(circle at 35% 30%, #ffbbaa, #dd2200); bottom:18%; right:20%; }
+.b6  { width:22px; height:22px; background: radial-gradient(circle at 35% 30%, #aaffaa, #008800); bottom:18%; right:28%; }
+.b8  { width:24px; height:24px; background: radial-gradient(circle at 35% 30%, #555, #111);       bottom:24%; right:16%; }
+.b9  { width:22px; height:22px; background: radial-gradient(circle at 35% 30%, #ffff88, #aaaa00); bottom:24%; right:24%; }
+.b10 { width:21px; height:21px; background: radial-gradient(circle at 35% 30%, #ffaaff, #880088); bottom:30%; right:20%; }
+.b11 { width:21px; height:21px; background: radial-gradient(circle at 35% 30%, #ffddaa, #ee6600); bottom:6%;  right:28%; }
+.b15 { width:21px; height:21px; background: radial-gradient(circle at 35% 30%, #ffaaaa, #990000); bottom:6%;  right:12%; }
 
 .b8::after {
   content: '8';
@@ -269,11 +272,11 @@ html, body {
   font-weight: 700;
 }
 
-/* Cue ball — left side */
+/* Cue ball — bottom left corner */
 .bcue {
   width: 26px; height: 26px;
   background: radial-gradient(circle at 35% 30%, #ffffff, #ddddc8);
-  bottom: 38%; left: 12%;
+  bottom: 10%; left: 6%;
   box-shadow:
     2px 4px 8px rgba(0,0,0,0.5),
     inset -2px -2px 4px rgba(0,0,0,0.1),
@@ -320,20 +323,6 @@ html, body {
   background: var(--chalk-blue);
   border-radius: 50% 50% 0 0;
 }
-
-/* ── RAIL PLAQUES ── */
-.plaque {
-  position: absolute;
-  font-family: 'Cinzel', serif;
-  font-size: 8px;
-  letter-spacing: 2px;
-  color: rgba(200,160,70,0.35);
-  text-transform: uppercase;
-  pointer-events: none;
-}
-
-.plaque-tl { top: 6px; left: 48px; }
-.plaque-tr { top: 6px; right: 48px; }
 
 /* ── MAIN CONTAINER ── */
 .main-container {
@@ -503,13 +492,19 @@ html, body {
   transform: translateX(-50%);
   font-family: 'Open Sans', sans-serif;
   font-weight: 300;
-  font-size: 9px;
-  letter-spacing: 5px;
-  color: rgba(255,255,255,0.1);
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.18);
   text-transform: uppercase;
   white-space: nowrap;
   z-index: 100;
   pointer-events: none;
+}
+
+#credits-title {
+  color: rgba(200,160,70,0.45);
+  font-weight: 600;
+  letter-spacing: 4px;
 }
 
 /* ── FONT HELPERS ── */
