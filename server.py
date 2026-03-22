@@ -67,14 +67,6 @@ async def handler(websocket):
 		# Delete the entry, but does not crash Azure if there is no entry if it failed to do a handshake.
 		rooms.get(room_id, {}).pop(peer_id, None)
 
-# This handles any non-websocket connection, 
-# Really just so azure doesn't crash when it sends a health-check, but could be made otherwise.
-async def process_request(path, headers):
-	# For possible future security polishing, note this does not make sure we actually turn away non-websockets!
-	# Someone could just make their upgrade key be "websocket" and do some damage.
-	if headers.get("Upgrade","").lower() != "websocket":
-		return(200, [], b"OK")
-
 
 port = int(os.environ.get("PORT", 8765)) # Needed for Azure
 
@@ -82,7 +74,7 @@ async def main():
 	# Replace "0.0.0.0" with "localhost", and this can be a local server connected to, and port with 8765
 	# Just then also set network.js's signalingURL to "ws://localhost:8765"
 	# Plus, you'll want to connect to the server through the static website via two browsers. At least in my experience!
-	async with websockets.serve(handler, "0.0.0.0", port, process_request=process_request):
+	async with websockets.serve(handler, "0.0.0.0", port):
 		await asyncio.Future()
 
 asyncio.run(main())
