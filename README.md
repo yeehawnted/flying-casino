@@ -17,7 +17,7 @@ static:
 		|- poker.js			game #1: poker
 	lobby:
 		|- lobby.html		lobby selection screen
-		|-
+		|- lobby.js			controls dynamic lobby selection
 webserver.js:				debug website
 server.py:					debug datachannel server
 signal_server.js			manages RTC connections + tracks rooms
