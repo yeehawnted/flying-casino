@@ -2,7 +2,7 @@ import {Deck} from "./deck.js"
 
 
 
-// Would like to officially note this is poorly made! Refactoring it to make it fancy would be a cool stretch goal.
+// Would like to officially note this function is poorly made! Refactoring it to make it fancy would be a cool stretch goal.
 // Particularly, it'd be nice if we could return a struct showing exactly what cards made up a hand, like a pair.
 // That would be especially nice considering that the winner of a draw is decided on the value of those cards.
 function pokerHandType(hand) {
@@ -65,6 +65,26 @@ function pokerHandType(hand) {
 	if (sortedCount[0][1] >= 2 && sortedCount[1][1] >= 2) {return "Two Pair"}
 	if (sortedCount[0][1] >= 2) {return "Pair"}
 	return "High Card"
+}
+
+const pokerHandValueTable = {
+	"Pair" : 0,
+	"Two Pair" : 1,
+	"Three of a Kind": 2,
+	"Straight" : 3,
+	"Flush" : 4,
+	"Full House" : 5,
+	"Four of a Kind" : 6,
+	"Straight Flush" : 7,
+	"Five of a Kind" : 8
+}
+
+function handScore(hand) {
+	var score = 0;
+	hand.forEach(card => {
+		score = score + card.value
+	});
+	return score
 }
 
 // Class to be extended for any individual poker game.
@@ -264,19 +284,21 @@ export class VideoPokerHTMLHandler {
 // If someone raises when someone has gone all-in, then the all-in person has an issue in that they cannot dedicate more chips to call.
 // In this case then, raises have to go into another sidePot, which the all-in does not get the winnings of since they did not dedicate to it.
 // So, that causes some decently complicated logic!  
+//
+// Note that this class is untested, and may need a lot of debugging.
 class Pot {
 	#prize
 	#allInLimit
-	#minimumBet
+	#currentBet // The amount needed to be bet, as per players.chipsBet. Needed, so that calling multiple times does not overcharge you.
 	#players
 	#sidePot
 
-	constructor(players, minimumBet = 1) {
-		this.#minimumBet = minimumBet
+	constructor(players, currentBet = 1) {
+		this.#currentBet = currentBet
 		this.#prize = 0
 
 		this.#players = players.slice().sort((a,b) => (a.chipsRemaining + a.chipsBet) - (b.chipsRemaining + b.chipsBet))
-		this.#allInLimit = this.#players[0].chipsRemaining + this.#players[0].chipsBet
+		this.#allInLimit = this.#players[0].chipsRemaining + this.#players[0].chipsBet // The player with the least chips.
 
 
 		// Maybe hacky? But making the function call just jump here if the pot isn't initialized is more efficient than having to check.
@@ -286,13 +308,13 @@ class Pot {
 			for (var i = 0; i < this.#players.length; i++) {
 				if (this.#players[i].chipsRemaining + this.#players[i].chipsBet > this.#allInLimit) {
 					var sidePot
-					if (bet >= this.#minimumBet) {
+					if (bet >= this.#currentBet) {
 						// This slice is fine as we shouldn't use the players array for anything but balance keeping.
 						// After all, all that this class does is help keep balance of bets, rather than decide how they are to bet.
 						sidePot = new Pot(this.#players.slice(i), bet)
 					} else {
 						// This is needed since a sidePot can be betted with "spill over" less then the currentBet.
-						sidePot = new Pot(this.#players.slice(i), this.#minimumBet)
+						sidePot = new Pot(this.#players.slice(i), this.#currentBet)
 					}
 
 					this.#sidePot = sidePot
@@ -305,18 +327,18 @@ class Pot {
 
 		// If the sidePot was never initialized and these redefined, then they definitely do not do anything
 		this.#sidePot.splitPot = () => {return}
-		this.#sidePot.reward = (player) => {return}
+		this.#sidePot.reward = (players) => {return}
 		this.#sidePot.destroy = () => {return}
 
 	}
 
 
-	bet(player, bet = this.#minimumBet) {
+	bet(player, bet = this.#currentBet) {
 		var betLimit = this.#allInLimit - player.chipsBet
 		if (betLimit <= 0) { // If we have bet enough that we cannot for this pot anymore
 			this.#sidePot.bet(player, bet) // Then we can just bet for the next pot with higher stakes!
 			return
-		} 
+		}
 		
 		else if (bet > betLimit) { // If we will now bet more than we can for the Pot
 			this.#prize += betLimit // We bet what we have left,
@@ -325,45 +347,61 @@ class Pot {
 
 			this.#sidePot.bet(player, bet - betLimit) // Then give to the next pot what we have left.
 			return
-		} 
+		}
 		
 		else { // Normal
 			this.#prize += bet
 			player.chipsBet += bet
-			// Questionable, but I believe it's up to the caller if they care if chipsRemaining is negative.
-			// After all, what does the pot know about .chipsRemaining? That's logic for players; this is card game logic!
 			player.chipsRemaining -= bet
+
 			return
 		}
 	}
 
-	raise(player, raise = this.#minimumBet) {
-		let newBet = raise + this.#minimumBet
+	raise(player, raise) {
+		let newBet = raise + this.#currentBet
 		this.bet(player, newBet)
-		this.#minimumBet = newBet
+		this.#currentBet = newBet
 	}
 
-	call(player) {this.bet(player, this.#minimumBet)}
+	// To call is to bet only up to that which is the currentBet.
+	call(player) {
+		callBet = this.#currentBet - player.chipsBet
+		if (callBet < 0) {
+			this.bet(player, 0)
+		} else {
+			this.bet(player, callBet)
+		}
+	}
 
 
 	splitPot() {
-		this.#players.forEach(player => {
-			player.chipsRemaining += (this.#prize/this.#players.length)
+		let unFolded = this.#players.filter(player => player.state != "folded")
+		unFolded.forEach(player => {
+			player.chipsRemaining += (this.#prize/unFolded.length)
 		})
 		this.#prize = 0
 		this.#sidePot.splitPot()
 	}
 
 
-	reward(player) {
-		// If the player could have been in this pot
-		if ((player.chipsRemaining + player.chipsBet) < this.#allInLimit) {
-			this.#sidePot.reward(player) // Also reward them the next pot, if they were in it.
-			player.chipsRemaining += this.#prize
+	reward(players) {
+		// What rewarded players could have been in this pot
+		var playersInPot = players.filter(player => (player.chipsRemaining + player.chipsBet) < this.#allInLimit)
+		if (playersInPot.length > 0) { // If we have any,
+			// Also reward them the next pot if they were in it
+			this.#sidePot.reward(playersInPot)
+
+			playersInPot.forEach(player => {
+				player.chipsRemaining += (this.#prize/playersInPot.length)
+			})
+
 			this.#prize = 0
 		} else {
-			// Otherwise, all players who could have been in this pot split the sharings
-			this.#sidePot.splitPot()
+			// Otherwise, split it between all players who could have been in this pot
+			// Note that this indeed somewhat unintuitively does not care about which of the pot are the largest winners;
+			// It actually never is in any game I know of! If a sidePot's betters don't win, their game just dissolves.
+			this.splitPot()
 		}
 		return
 	}
@@ -377,7 +415,7 @@ class Pot {
 		this.#sidePot = null
 		this.#prize = null
 		this.#allInLimit = null
-		this.#minimumBet = null
+		this.#currentBet = null
 		this.#players = null
 	}
 }
@@ -387,43 +425,250 @@ class Pot {
 class TexasHoldEm extends Poker {
 	communityCards
 
-	// Note that TexasHoldEm by definition needs betting. Otherwise, it is just "who has the better hand."
+	// Note that TexasHoldEm by definition needs betting. Otherwise, it is just "who draws the better hand."
 	#pot
 	#players
-	#minimumBet
+	#currentBet
+	#toPlayIndex
+	#firstToPlayIndex = 0 // Index of the first player in a betting round.
+	#raised = false // AKA, if everyone hasn't called or folded, and so if a betting round is over we need to go again.
+	#round = 0 // 0 = flop, 1 = turn, 2 = river, 3 = game over!
 
 	constructor (
 		/* 	Assumes an array of player objects with:
 			.chipsRemaining, which is a mutable value of chips to lose or grow larger through bets
 			.chipsBet, which is a mutable value of chips that they have dedicated in the current game
+			.send, which is a function that sends an object to other players,
+			.state, which describes its state either "none" "called" "folded" or "raised"
+			and .hand
 		*/
 		players, 
-		minimumBet = 1
+		currentBet = 1,
 	) {
 		super(2)
 
 		this.communityCards = []
 
 		this.#players = players
-		this.#minimumBet = minimumBet
-		this.#pot = new Pot(this.#players, minimumBet)
+		this.#currentBet = currentBet
+		this.#pot = new Pot(this.#players, currentBet)
 	}
 
-
-	ante(smallBlindIndex, bet = this.#minimumBet/2) {
-		this.#pot.bet(this.#players[smallBlindIndex], bet)
-
-		this.#pot.bet(smallBlindIndex === this.players.length ? this.#players[0] : this.players[bigBlindIndex + 1], bet*2)
+	cardReveals() {
+		for (let i; i < this.#players.length; i++) {
+			this.#players.forEach(player => {
+				player.send({
+					type: "texasHoldEm",
+					act: "showHand",
+					owner: i,
+					hand: [
+						{
+							label: this.#players[i].hand[0].label,
+							suit: this.#players[i].hand[0].suit
+						}, {
+							label: this.#players[i].hand[1].label,
+							suit: this.#players[i].hand[1].suit
+						},
+					],
+					handType: pokerHandType([...this.#players[i].hand, ...this.communityCards])
+				})
+			})
+		}
 	}
-
-	bettingRound() {
-
-	}
-
-	#pushCommunityCard() {this.communityCards.push(this.cards.pop())}
 
 	decideWinner() {
+		var winnerIndexes = []
+		winnerIndexes[0] = this.#players[0]
+		for (let i = 0; i < this.#players.length; i++) {
+			if (this.#players.state == "folded") {continue}
 
+			let fullHand = [...this.#players[i].hand, ...this.communityCards]
+
+			if (pokerHandValueTable[pokerHandType(fullHand)] > pokerHandValueTable[pokerHandType(winnerIndexes[0].hand)]) {
+				winnerIndexes = []
+				winnerIndexes[0] = this.#players[i]
+			} 
+			else if (pokerHandValueTable[pokerHandType(fullHand)] == pokerHandValueTable[pokerHandType(winnerIndexes[0].hand)]) {
+				if (handScore(fullHand) > handScore(winnerIndexes[0].hand)) {
+					winnerIndexes = []
+					winnerIndexes[0] = this.#players[i]
+				} else {
+					winnerIndexes.appendChild(this.#players[i])
+				}
+			}
+		}
+		this.#pot.reward(winnerIndexes)
+	}
+
+	ante(smallBlindIndex, bet = this.#currentBet/2) {
+		this.#pot.bet(this.#players[smallBlindIndex], bet)
+
+		// big blind
+		this.#pot.bet(smallBlindIndex == this.#players.length-1 ? this.#players[0] : this.players[smallBlindIndex + 1], bet*2)
+		
+		// Person next to the big blind, who will be the person to start playing in the game
+		this.#firstToPlayIndex = (smallBlindIndex == this.#players.length-2 ? 0 : smallBlindIndex+2)
+		this.#toPlayIndex = this.#firstToPlayIndex
+
+
+		// Ante is also the start of the game, so we give everyone their hands.
+		var hands = []
+		deal(this.#players.length, hands)
+
+		// Give ourselves our hand
+		this.#players[0].hand = hands[0]
+		for (var i = 1; i < this.#players.length; i++) {
+			// Give everyone else their hands
+			this.#players[i].hand = hands[i]
+
+			// and tell them they have gotten a hand
+			this.#players[i].send({
+				type: "texasHoldEm",
+				action: "giveHand",
+				hand: [
+					{
+						label: this.#players[i].hand[0].label,
+						suit: this.#players[i].hand[0].suit
+					}, {
+						label: this.#players[i].hand[1].label,
+						suit: this.#players[i].hand[1].suit
+					},
+				]
+			})
+		}
+	}
+
+	#flop() {
+		this.communityCards.push(this.cards.pop())
+		this.communityCards.push(this.cards.pop())
+		this.communityCards.push(this.cards.pop())
+
+		for (var i = 0; i < this.#players.length; i++) {
+			this.#players[i].send({
+				type: "texasHoldEm",
+				action: "flop",
+				flopped: [
+					{
+						label: this.communityCards[0].label,
+						suit: this.communityCards[0].suit
+					}, {
+						label: this.communityCards[1].label,
+						suit: this.communityCards[1].suit
+					}, {
+						label: this.communityCards[2].label,
+						suit: this.communityCards[2].suit
+					}
+				]
+			})
+		}
+	}
+
+	#turn() {
+		this.communityCards.push(this.cards.pop())
+		for (var i = 0; i < this.#players.length; i++) {
+			this.#players[i].send({
+				type: "texasHoldEm",
+				action: "turn",
+				card: {
+					label: this.communityCards[3].label,
+					suit: this.communityCards[3].suit
+				}
+			})
+		}
+	}
+
+	#river() {
+		this.communityCards.push(this.cards.pop())
+		for (var i = 0; i < this.#players.length; i++) {
+			this.#players[i].send({
+				type: "texasHoldEm",
+				action: "river",
+				card: {
+					label: this.communityCards[4].label,
+					suit: this.communityCards[4].suit
+				}
+			})
+		}
+	}
+	
+	#nextTurn() {
+		do {
+			if (this.#toPlayIndex == this.#players.length-1) {
+				this.#toPlayIndex = 0
+			} else {
+				this.#toPlayIndex = this.#toPlayIndex + 1
+			}
+
+			if (this.#toPlayIndex == this.#firstToPlayIndex) { // If we've reached the end, make it the next round.
+				for (var i = 0; i < this.#players.length; i++) {
+					if (this.#players[i].state != "folded") {
+						this.#players[i].state = "none"
+					}
+				}
+
+				if (!this.#raised) { // If we hadn't raised and new a round of betting, we move onto the next game state
+					switch (this.#round) {
+						case 0:
+							this.#flop()
+							this.#round = 1
+							break
+						case 1:
+							this.#turn()
+							this.#round = 2
+							break
+						case 2:
+							this.#river()
+							this.#round = 3
+							break
+						case 3:
+							this.decideWinner()
+							break
+					}
+				}
+			}
+
+			// If the player who would play has folded, they do not have a turn, so its the next persons!
+		} while (this.#players[this.#toPlayIndex].state != "folded")
+
+		// Tell the person to play that it is their turn!
+		this.#players[this.#toPlayIndex].send({
+			type: "texasHoldEm",
+			action: "givenTurn"
+		})
+	}
+
+
+	playerRaise(playerIndex, raise) {
+		if (playerIndex == this.#toPlayIndex) {
+			var player = this.#players[playerIndex]
+			if (player.state != "folded") {
+				this.#pot.raise(player, raise)
+				player.state = "raise"
+				this.#raised = true
+
+				this.#nextTurn()
+			}
+		}
+	}
+
+	playerCall(playerIndex) {
+		if (playerIndex == this.#toPlayIndex) {
+			var player = this.#players[playerIndex]
+			if (player.state != "folded") {
+				this.#pot.call(player)
+				player.state = "call"
+
+				this.#nextTurn()
+			}
+		}
+	}
+
+	playerFold(playerIndex) {
+		if (playerIndex == this.#toPlayIndex) {
+			this.#players[playerIndex] = "folded"
+
+			this.#nextTurn()
+		}
 	}
 }
 
@@ -442,7 +687,11 @@ const texasHoldEmHTML = `
 <div class="gameOutput" id="texasHoldemOutput"></div>
 `
 
-
+/*	to-do
+	Differentiate between host and non-host
+		Ensure that the host gives non-hosts a players list matching their own. (or otherwise make lists compatible)
+	Test if everything actually works
+*/
 export class TexasHoldEmHTMLHandler {
 	// Arbitrarily accessible class attributes for easy access to DOM elements.
 	currentChips
@@ -455,21 +704,40 @@ export class TexasHoldEmHTMLHandler {
 	tableau
 	gameOutput
 	playerStates
+	playerSelfIndex
+	isHost
 
 	#texasHoldEm
 	#players
 
 	constructor(document, container, 
-		/* 	Assumes an array of player objects with:
+		/* 	Assumes an array of objects with:
 			.chipsRemaining, which is a mutable value of chips to lose or grow larger through bets
 			.chipsBet, which is a mutable value of chips that they have dedicated in the current game
+			and a .send() function, equivalent to a NetworkingAPI.sendObject() but passed with the ID for the player
+
+			.send() is of particular importance, as the caller of this needs its own .send() to get objects without networking,
+			This is since certain .send() calls tell everyone what to render, and that includes this object!
+			It is also notable in that it handles all game state interfacing. 
+			If you have AI, you'll likely have a player with a unique .send()
+
+			Each will eventually be assigned a .state variable, either "none" "called" "folded" or "raised"
+			And a .hand variable.
+
+			Therefore, make this array per construction of TexasHoldEmHTMLHandler. It is transitory in design.
 		*/
 		players,
+		playerSelfIndex, // The index for the player representing the creator of this HTMLHandler.
+		isHost
 	) {
 		container.insertAdjacentHTML("beforeend", texasHoldEmHTML)
 
 		this.#players = players
-		this.#texasHoldEm = new TexasHoldEm()
+		this.isHost = isHost
+		if (this.isHost) {
+			this.#texasHoldEm = new TexasHoldEm()
+		}
+		this.playerSelfIndex = playerSelfIndex
 
 		this.document = document
 		this.currentChips = document.getElementById("texasHoldEmCurrentChips")
@@ -477,6 +745,9 @@ export class TexasHoldEmHTMLHandler {
 		this.raiseInput = document.getElementById("texasHoldEmRaiseInput")
 		// need a "current pot" element here, likely.
 		this.raise = document.getElementById("texasHoldEmRaise")
+
+		// As a note on calling, it is to effectively be the same thing as checking / staying
+		// This is since you only check if no one has made a bet yet, and in such a case, you actually are just calling for 0 chips.
 		this.call = document.getElementById("texasHoldEmCall")
 		this.fold = document.getElementById("texasHoldEmFold")
 		this.hand = document.getElementById("texasHoldemHand")
@@ -484,13 +755,39 @@ export class TexasHoldEmHTMLHandler {
 		this.playerStates = document.getElementById("texasHoldemPlayerStates")
 		this.gameOutput = document.getElementById("texasHoldemOutput")
 
-		for (let i = 0; i < players.length; i++) {
+		for (var i = 0; i < this.#players.length; i++) {
 			const player = this.document.createElement("li")
 			player.classList.add("player")
 			player.dataset.state = "none"
 			player.dataset.index = i
 
 			this.playerStates.appendChild(player)
+		}
+
+
+		this.call.onclick = () => {
+			this.#players[0].send({
+				type: "texasHoldEm",
+				action: "call",
+				playerIndex: playerSelfIndex
+			})
+		}
+
+		this.raise.onclick = () => {
+			this.#players[0].send({
+				type: "texasHoldEm",
+				action: "raise",
+				playerIndex: playerSelfIndex,
+				raise: this.raiseInput.value
+			})
+		}
+
+		this.fold.onclick = () => {
+			this.#players[0].send({
+				type: "texasHoldEm",
+				action: "fold",
+				playerIndex: playerSelfIndex
+			})
 		}
 	}
 
@@ -519,61 +816,68 @@ export class TexasHoldEmHTMLHandler {
 		}
 	}
 
-	renderTableau(tableau) {
-		for (let i = 0; i < tableau.length; i++) {
-			const card = this.document.createElement("li")
-			card.classList.add("card")
-			card.dataset.label = tableau[i].label
-			card.dataset.suit = tableau[i].suit
-			card.dataset.index = i
+	// Essentially, we want the NetworkAPI to give any texasHoldEm actions to the HTMLHandler, so we can handle them.
+	// We expect that NetworkAPI to send a JavaScript object converted from a sent JSON message.
+	receiveAction(actionObject) {
+		switch(actionObject.action) {
+			case "giveHand":
+				this.renderHand(actionObject.hand)
+				break
+			case "raise":
+				if (this.isHost) {this.#texasHoldEm.playerRaise(actionObject.playerIndex, actionObject.bet)}
+				break
+			case "call":
+				if (this.isHost) {this.#texasHoldEm.playerCall(actionObject.playerIndex)}
+				break
+			case "fold":
+				if (this.isHost) {this.#texasHoldEm.playerFold(actionObject.playerIndex)}
+				break
+			case "flop":
+				for (let i = 0; i < actionObject.flopped.length; i++) {
+					const card = this.document.createElement("li")
+					card.classList.add("card")
+					card.dataset.label = actionObject.flopped[i].label
+					card.dataset.suit = actionObject.flopped[i].suit
+					card.dataset.index = i
 
-			this.tableau.appendChild(card)
+					this.tableau.appendChild(card)
+				}
+				break
+			case "turn": {
+				const card = this.document.createElement("li")
+				card.classList.add("card")
+				card.dataset.label = actionObject.card.label
+				card.dataset.suit = actionObject.card.suit
+				card.dataset.index = 3
+				this.tableau.appendChild(card)
+			} break
+			case "river": {
+				const card = this.document.createElement("li")
+				card.classList.add("card")
+				card.dataset.label = actionObject.card.label
+				card.dataset.suit = actionObject.card.suit
+				card.dataset.index = 4
+				this.tableau.appendChild(card)
+			} break
 		}
 	}
 
-	
-	/* 	A mess of a function over all, particularly notable due to its incompleteness.
-		
-		I believe it would be best that .#players and .#texasHoldEm are put into a seperate "host handler" class;
-		Only the host should have the game logic, and we need raise-fold-call inputs from other players for this all to work.  
-	*/
+
+
 	async start(smallBlindIndex) {
 		this.#texasHoldEm.ante(smallBlindIndex)
+		this.renderHand(hands[this.#players[0]])
+	}
+}
 
-		var hands = []
-		this.#texasHoldEm.deal(this.#players.length, hands)
 
-		for (let i = 0; i < this.#players.length; i++) {
-			// This is a make-believe pretend method of whatever players are. No clue how, but we give them a hand!
-			this.#players[i].giveHand(hand[i])
-		}
 
-		// We are logically players[0] because we are the one calling the entire HTMLHandler in the first place. So we render our cards
-		for (let i = 0; i < this.#players[0].hand.length; i++) {
-			const card = this.document.createElement("li")
-			card.classList.add("card")
-			card.dataset.label = this.#players[0].hand[i].label
-			card.dataset.suit = this.#players[0].hand[i].suit
-			card.dataset.index = i
-
-			this.hand.appendChild(card)
-		}
-
-		// And then, somehow, we need to get raise-fold-call from all other players to continue
-		// Note that each time someone raises we have to re-do the entire thing until everyone has either called, is all-in, or folded.
-		
-		// Then we do the flop here (three comunnity card revealed)
-
-		// another raise-fold-call
-		
-		// The turn (one community card revealed)
-
-		// Another raise-fold-call
-
-		// The river (Final community card revealed)
-
-		// Raise-fold-call again
-		
-		// And then we check the poker hands to find our winner. 
+export class Player {
+	chipsRemaining = 0
+	chipsBet = 0
+	state = "none"
+	
+	constructor(sendFunction) {
+		this.send() = sendFunction
 	}
 }
