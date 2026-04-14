@@ -676,14 +676,14 @@ class TexasHoldEm extends Poker {
 // Note that tableau is the community cards; I just used it as the name since it is more generic.
 const texasHoldEmHTML = `
 <span class="currentChips" id="texasHoldEmCurrentChips"></span>
-<span class="currentBet" id="texasHoldEmCurrentChips"></span>
+<span class="currentBet" id="texasHoldEmCurrentBet"></span>
 <input class="raiseInput" id="texasHoldEmRaiseInput"></input>
 <button class="raise" id="texasHoldEmRaise"></button>
 <button class="call" id="texasHoldEmCall"></button>
 <button class="fold" id="texasHoldEmFold"></button>
 <ul class="hand" id="texasHoldemHand"></ul>
 <ul class="tableau" id="texasHoldemTableau"></ul>
-<ul class="playerStates" id="texasHoldemPlayerStates></ul>
+<ul class="playerStates" id="texasHoldemPlayerStates"></ul>
 <div class="gameOutput" id="texasHoldemOutput"></div>
 `
 
@@ -741,7 +741,7 @@ export class TexasHoldEmHTMLHandler {
 
 		this.document = document
 		this.currentChips = document.getElementById("texasHoldEmCurrentChips")
-		this.currentBet = document.getElementById("texasHoldEmCurrentChips")
+		this.currentBet = document.getElementById("texasHoldEmCurrentBet")
 		this.raiseInput = document.getElementById("texasHoldEmRaiseInput")
 		// need a "current pot" element here, likely.
 		this.raise = document.getElementById("texasHoldEmRaise")
