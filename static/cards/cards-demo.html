@@ -67,7 +67,7 @@
 
 					for (const peer of Object.values(network.peers)) {
 						// We create a Player which has a .call(object), which is just a .sendObject() with the player's respective PeerId.
-						texasHoldEmPlayers.append(Player((object) => network.sendObject(object, peer.PeerId)))
+						texasHoldEmPlayers.append(new Player((object) => network.sendObject(object, peer.PeerId)))
 					}
 					htmlHandler = new TexasHoldEmHTMLHandler(document, gameSpace, texasHoldEmPlayers, 0)
 					
