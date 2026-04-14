@@ -4,6 +4,10 @@
 	<title>Texas Hold 'Em – The Flying Casino</title>
 	<style>
 		.currentChips::before { content: "Current Chips: "; }
+		.currentBet::before { content: "Current Bet: "; }
+		.raise::before { content: "Raise"; }
+		.call::before { content: "Call"; }
+		.fold::before { content: "Fold"; }
 		li.card[data-label][data-suit]::before { content: attr(data-label) " of " attr(data-suit)"s"; }
 		li.card[data-selected="TRUE"] { color: red; }
 		li.card[data-selected=FALSE] { color: black; }
