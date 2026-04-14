@@ -29,7 +29,7 @@
 		
 		var htmlHandler = null
 		var network = await constructNetworkAPI("wss://flying-casino-brakftgmdhbca5cy.canadacentral-01.azurewebsites.net/")
-		network.onMessage() = (message) => {
+		network.onMessage = (message) => {
 			let messageObject = JSON.parse(message.data)
 			switch (messageObject.type) {
 				case "texasHoldEm":
