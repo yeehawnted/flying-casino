@@ -878,6 +878,6 @@ export class Player {
 	state = "none"
 	
 	constructor(sendFunction) {
-		this.send() = sendFunction
+		this.send = sendFunction
 	}
 }
