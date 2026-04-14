@@ -11,7 +11,10 @@ const GAME_LABELS = {
 	'video-poker': "Video Poker"
 };
 
-const GAME_BASE = "../cards/cards-demo.html";
+const GAME_PAGES = {
+	'video-poker': '../cards/video-poker.html',
+	'holdem':      '../cards/holdem.html',
+};
 
 function getRooms() {
 	try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
@@ -57,7 +60,7 @@ function renderRooms() {
 	list.innerHTML = '';
 
 	for (const room of all) {
-		const url  = `${GAME_BASE}?game=${encodeURIComponent(room.game)}&room=${encodeURIComponent(room.id)}`;
+		const url  = `${GAME_PAGES[room.game]}?room=${encodeURIComponent(room.id)}`;
 		const card = document.createElement('div');
 		card.className = 'room-card';
 		card.innerHTML = `
@@ -100,7 +103,7 @@ document.querySelectorAll('.game-card:not(.coming-soon)').forEach(card => {
 	card.addEventListener('click', () => {
 		const game = card.dataset.game;
 		if (isSolo) {
-			location.href = `${GAME_BASE}?game=${encodeURIComponent(game)}&solo=true`;
+			location.href = `${GAME_PAGES[game]}?solo=true`;
 		} else {
 			showRooms(game);
 		}
