@@ -31,7 +31,7 @@
 		
 		var htmlHandler = null
 		var network = await constructNetworkAPI("wss://flying-casino-brakftgmdhbca5cy.canadacentral-01.azurewebsites.net/")
-		network.onMessage() = (message) => {
+		network.onMessage = (message) => {
 			let messageObject = JSON.parse(message.data)
 			switch (messageObject.type) {
 				case "texasHoldEm":
@@ -65,11 +65,11 @@
 					var texasHoldEmPlayers = []
 
 					// The first player is ourselves, who should just pass on any incoming objects to our own reciever.
-					texasHoldEmPlayers.append(Player((object) => htmlHandler.recieveAction(object)))
+					texasHoldEmPlayers.append(new Player((object) => htmlHandler.recieveAction(object)))
 
 					for (const peer of Object.values(network.peers)) {
 						// We create a Player which has a .call(object), which is just a .sendObject() with the player's respective PeerId.
-						texasHoldEmPlayers.append(Player((object) => network.sendObject(object, peer.PeerId)))
+						texasHoldEmPlayers.append(new Player((object) => network.sendObject(object, peer.PeerId)))
 					}
 					htmlHandler = new TexasHoldEmHTMLHandler(document, gameSpace, texasHoldEmPlayers, 0)
 					
