@@ -158,3 +158,4 @@ document.querySelectorAll('.ball').forEach(ball => {
 		this.style.transform = '';
 	});
 });
+
