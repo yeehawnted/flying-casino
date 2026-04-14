@@ -75,10 +75,18 @@
 					
 
 					break
-				default: 
+				default:
 					break
 			}
 		})
+
+		// Auto-select the game passed via ?game= URL param
+		const gameMap = { 'video-poker': 'videoPoker', 'holdem': 'texasHoldEm' };
+		const gameParam = gameMap[new URLSearchParams(location.search).get('game')];
+		if (gameParam) {
+			gameSelect.value = gameParam;
+			gameSelect.dispatchEvent(new Event('change'));
+		}
 	</script>
 </body>
 
